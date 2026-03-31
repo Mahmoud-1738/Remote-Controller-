@@ -7,7 +7,7 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "devstart": "nodemon server.js"
+    "np": "nodemon server.js"
   },
   "dependencies": {
     "express": "^5.2.1",

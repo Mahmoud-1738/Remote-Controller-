@@ -1,13 +1,351 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>game</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+<head>
+	<title>K4RA Race</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<style>
+		@font-face {
+			font-family: "usuzi";
+			src: url("USUZI.woff") format('woff');
+		}
+
+		* { box-sizing: border-box; margin: 0; padding: 0; }
+
+		body {
+			font-family: "usuzi", monospace;
+			background: #07080f;
+			color: #fff;
+			overflow: hidden;
+			width: 100vw;
+			height: 100vh;
+		}
+
+		/* Subtle grid */
+		body::before {
+			content: '';
+			position: fixed;
+			inset: 0;
+			background-image:
+				linear-gradient(rgba(0,140,255,0.04) 1px, transparent 1px),
+				linear-gradient(90deg, rgba(0,140,255,0.04) 1px, transparent 1px);
+			background-size: 52px 52px;
+			pointer-events: none;
+			z-index: 0;
+		}
+
+		/* ── Title ──────────────────────────────────────────── */
+		#header {
+			position: absolute;
+			top: 30px;
+			left: 50%;
+			transform: translateX(-50%);
+			text-align: center;
+			z-index: 1;
+			white-space: nowrap;
+		}
+
+		#title {
+			font-size: clamp(32px, 6.5vw, 76px);
+			letter-spacing: 14px;
+			color: #fff;
+			animation: pulse-glow 3.5s ease-in-out infinite;
+		}
+
+		#title-bar {
+			height: 1px;
+			background: linear-gradient(90deg, transparent, #00c8ff 30%, #00c8ff 70%, transparent);
+			margin-top: 10px;
+			opacity: 0.5;
+		}
+
+		#subtitle {
+			margin-top: 8px;
+			font-size: 11px;
+			letter-spacing: 6px;
+			color: #1a4060;
+			text-transform: uppercase;
+		}
+
+		@keyframes pulse-glow {
+			0%, 100% { text-shadow: 0 0 18px rgba(0,200,255,0.7), 0 0 50px rgba(0,150,255,0.35); }
+			50%       { text-shadow: 0 0 30px rgba(0,200,255,1),   0 0 80px rgba(0,150,255,0.55), 0 0 130px rgba(0,100,200,0.3); }
+		}
+
+		/* ── Car preview ────────────────────────────────────── */
+		#car-glow {
+			position: absolute;
+			left: 50%;
+			top: 50%;
+			transform: translate(-50%, -50%);
+			width: 520px;
+			height: 320px;
+			background: radial-gradient(ellipse, rgba(0,110,255,0.10) 0%, transparent 70%);
+			pointer-events: none;
+			z-index: 1;
+			opacity: 0;
+			transition: opacity 0.4s;
+		}
+		#car-glow.visible { opacity: 1; }
+
+		#car-parts {
+			position: absolute;
+			left: 50%;
+			top: 50%;
+			width: 343px;
+			height: 220px;
+			transform: translateX(-50%) translateY(-55%);
+			z-index: 2;
+		}
+		#car-parts img {
+			position: absolute;
+			left: 0;
+			top: 0;
+		}
+
+		/* ── Right panel: Customize ──────────────────────────── */
+		#customize-panel {
+			position: absolute;
+			right: 30px;
+			top: 50%;
+			transform: translateY(-50%);
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			z-index: 2;
+		}
+
+		#customize-title {
+			font-size: 10px;
+			letter-spacing: 5px;
+			color: #0d3050;
+			text-transform: uppercase;
+			margin-bottom: 8px;
+			text-align: center;
+		}
+
+		#part-select {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+		}
+
+		#part-select button {
+			font-family: "usuzi";
+			background: transparent;
+			border: 1px solid #0d2d4a;
+			color: #1e4d70;
+			width: 148px;
+			height: 40px;
+			font-size: 13px;
+			letter-spacing: 2px;
+			text-transform: uppercase;
+			cursor: pointer;
+			transition: all 0.15s;
+			border-radius: 3px;
+		}
+
+		#part-select button:hover {
+			border-color: #00c8ff;
+			color: #00c8ff;
+			background: rgba(0,200,255,0.05);
+			box-shadow: 0 0 12px rgba(0,200,255,0.2);
+		}
+
+		#part-select button:active {
+			background: rgba(0,200,255,0.12);
+			color: #fff;
+		}
+
+		/* ── Message ─────────────────────────────────────────── */
+		#message {
+			position: absolute;
+			left: 50%;
+			top: 50%;
+			transform: translateX(-50%) translateY(90px);
+			width: 360px;
+			font-size: 12px;
+			letter-spacing: 2px;
+			color: #1a4060;
+			text-align: center;
+			text-transform: uppercase;
+			z-index: 2;
+		}
+
+		/* ── Play button ─────────────────────────────────────── */
+		#play-btn {
+			position: absolute;
+			bottom: 38px;
+			left: 50%;
+			transform: translateX(-50%);
+			font-family: "usuzi";
+			background: transparent;
+			border: 2px solid #00c8ff;
+			color: #00c8ff;
+			width: auto;
+			height: auto;
+			font-size: 22px;
+			letter-spacing: 8px;
+			padding: 14px 60px;
+			cursor: pointer;
+			border-radius: 3px;
+			transition: all 0.2s;
+			box-shadow: 0 0 22px rgba(0,200,255,0.18), inset 0 0 22px rgba(0,200,255,0.03);
+			z-index: 2;
+			text-transform: uppercase;
+		}
+
+		#play-btn:hover {
+			background: rgba(0,200,255,0.09);
+			box-shadow: 0 0 45px rgba(0,200,255,0.5), inset 0 0 22px rgba(0,200,255,0.08);
+			color: #fff;
+		}
+
+		/* ── Reset button (in-game) ──────────────────────────── */
+		#reset-btn {
+			display: none;
+			position: absolute;
+			left: 15px;
+			bottom: 15px;
+			width: 44px;
+			height: 44px;
+			border: 1px solid #1a3a5a;
+			border-radius: 50%;
+			background: rgba(0,20,50,0.85);
+			font-size: 22px;
+			color: #fff;
+			padding: 0;
+			cursor: pointer;
+			z-index: 10;
+		}
+
+		/* ── HUD (in-game overlay) ───────────────────────────── */
+		#hud {
+			display: none;
+			position: absolute;
+			top: 15px;
+			right: 15px;
+			font-family: "usuzi", monospace;
+			font-size: 16px;
+			color: #fff;
+			text-align: right;
+			text-shadow: 0 0 8px rgba(0,200,255,0.5);
+			pointer-events: none;
+			z-index: 10;
+		}
+
+		#hud-speed {
+			font-size: 28px;
+			color: #00c8ff;
+			text-shadow: 0 0 12px rgba(0,200,255,0.7);
+			margin-bottom: 4px;
+		}
+
+		#hud-controller-status {
+			margin-top: 10px;
+			font-size: 12px;
+			color: #aaa;
+		}
+
+		#hud-controller-url {
+			font-size: 10px;
+			color: #555;
+			max-width: 220px;
+			word-break: break-all;
+		}
+
+		/* ── Mobile ──────────────────────────────────────────── */
+		@media only screen and (max-width: 720px) {
+			#customize-panel {
+				right: auto;
+				top: auto;
+				bottom: 110px;
+				left: 50%;
+				transform: translateX(-50%);
+				align-items: center;
+			}
+
+			#part-select {
+				flex-direction: row;
+				flex-wrap: wrap;
+				justify-content: center;
+				width: calc(100vw - 20px);
+			}
+
+			#part-select button {
+				width: calc(50% - 8px);
+				max-width: 160px;
+			}
+
+			#play-btn {
+				bottom: 18px;
+				padding: 12px 40px;
+			}
+
+			#car-parts {
+				transform: translateX(-50%) translateY(-60%);
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<!-- Title -->
+	<div id="header">
+		<div id="title">K4RA&nbsp;&nbsp;RACE</div>
+		<div id="title-bar"></div>
+		<div id="subtitle">Remote Control Racing</div>
+	</div>
+
+	<!-- Car glow (fades in when a car is selected) -->
+	<div id="car-glow"></div>
+
+	<!-- Car preview (starts blank, updated on car select) -->
+	<div id="car-parts">
+		<img src="assets/images/carparts0000.png">
+	</div>
+
+	<!-- Customize panel -->
+	<div id="customize-panel">
+		<div id="part-select">
+			<button>Car 1</button>
+			<button>Car 2</button>
+			<button>Car 3</button>
+		</div>
+	</div>
+
+	<!-- Message -->
+	<div id="message">Choose a car to get started.</div>
+
+	<!-- Play button -->
+	<button id="play-btn">PLAY</button>
+
+	<!-- Reset (shown in-game) -->
+	<button id="reset-btn">&#x1F697;</button>
+
+	<!-- HUD (shown in-game) -->
+	<div id="hud">
+		<div id="hud-speed">0 km/h</div>
+		<div id="hud-controller-status">Controller: offline</div>
+		<div id="hud-controller-url"></div>
+	</div>
+
+	<script src="/socket.io/socket.io.js"></script>
+	<script src="libs/three.min.js"></script>
+	<script src="libs/inflate.min.js"></script>
+	<script src="libs/FBXLoader.js"></script>
+	<script src="libs/OrbitControls.js"></script>
+	<script src="libs/Detector.js"></script>
+	<script src="libs/stats.min.js"></script>
+	<script src="libs/cannon.min.js"></script>
+	<script src="libs/CannonDebugRenderer.js"></script>
+	<script src="game.js"></script>
+
+	<script>
+		document.addEventListener("DOMContentLoaded", function(){
+			const game = new Game();
+			window.game = game;
+		});
+	</script>
+</body>
 </html>

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <title>RC Controller</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: #111;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            font-family: monospace;
+        }
+
+        /* ── Portrait warning ─────────────────────────────── */
+        #portrait-hint {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #111;
+            z-index: 999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 15px;
+            gap: 16px;
+        }
+        #portrait-hint .icon { font-size: 52px; }
+
+        @media (orientation: portrait) {
+            #portrait-hint { display: flex; }
+            #controller    { display: none; }
+        }
+
+        /* ── Main layout ──────────────────────────────────── */
+        #controller {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: stretch;
+            padding: 10px;
+            gap: 10px;
+        }
+
+        /* ── Status ───────────────────────────────────────── */
+        #status-bar {
+            position: absolute;
+            top: 7px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            color: #444;
+            z-index: 10;
+            pointer-events: none;
+        }
+        #status-dot { width: 7px; height: 7px; border-radius: 50%; background: #444; flex-shrink: 0; }
+        .s-connected    #status-dot  { background: #4f4; box-shadow: 0 0 6px #4f4; }
+        .s-connected    #status-text { color: #4f4; }
+        .s-disconnected #status-dot  { background: #f44; }
+        .s-disconnected #status-text { color: #f44; }
+
+        /* ── LEFT: Steering ───────────────────────────────── */
+        #steer-section {
+            flex: 0 0 55%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        #wheel-img {
+            filter: invert(0.88);
+            width: min(46vw, 78vh);
+            max-width: 300px;
+            height: auto;
+            object-fit: contain;
+            cursor: grab;
+            transition: transform 0.06s ease-out, filter 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #wheel-img.grabbed {
+            cursor: grabbing;
+            filter: invert(1);
+            transition: transform 0s, filter 0.1s;
+        }
+
+        /* Turn indicator bar */
+        #turn-bar-wrap {
+            width: 55%;
+            max-width: 200px;
+            height: 4px;
+            background: #222;
+            border-radius: 2px;
+            position: relative;
+        }
+        #turn-bar {
+            position: absolute;
+            top: 0; bottom: 0;
+            background: #4a9eff;
+            border-radius: 2px;
+        }
+
+        #steer-hint {
+            font-size: 10px;
+            letter-spacing: 2px;
+            color: #333;
+            text-transform: uppercase;
+        }
+
+        /* ── RIGHT: Pedals side by side ──────────────────── */
+        #pedals-section {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+        }
+
+        .pedal-panel {
+            flex: 1;
+            background: transparent;
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 6px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .pedal-panel img {
+            max-height: 75%;
+            max-width: 100%;
+            object-fit: contain;
+            pointer-events: none;
+            transition: transform 0.08s, filter 0.08s;
+        }
+
+        .pedal-label {
+            font-size: 12px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            color: #444;
+            text-transform: uppercase;
+            transition: color 0.08s;
+        }
+
+        /* Gas */
+        #gas-panel.active img          { transform: scale(0.93) translateY(3px); filter: drop-shadow(0 0 14px rgba(50,220,50,0.9)); }
+        #gas-panel.active .pedal-label { color: #3d3; }
+
+        /* Brake */
+        #brake-panel.active img          { transform: scale(0.93) translateY(3px); filter: drop-shadow(0 0 14px rgba(220,50,50,0.9)); }
+        #brake-panel.active .pedal-label { color: #e33; }
+    </style>
+</head>
+<body>
+
+    <div id="portrait-hint">
+        <div class="icon">🔄</div>
+        <div>Rotate your phone to landscape</div>
+    </div>
+
+    <div id="controller">
+        <div id="status-bar">
+            <div id="status-dot"></div>
+            <span id="status-text">Connecting...</span>
+        </div>
+
+        <!-- LEFT: Steering wheel -->
+        <div id="steer-section">
+            <img id="wheel-img" src="assets/images/steeringWheel.png" draggable="false">
+            <div id="turn-bar-wrap"><div id="turn-bar"></div></div>
+            <div id="steer-hint">drag to steer</div>
+        </div>
+
+        <!-- RIGHT: Gas (top) + Brake (bottom) -->
+        <div id="pedals-section">
+            <div class="pedal-panel" id="gas-panel">
+                <img src="assets/images/acceleratorPedal.png" draggable="false">
+                <div class="pedal-label">Gas</div>
+            </div>
+            <div class="pedal-panel" id="brake-panel">
+                <img src="assets/images/brakePedal.png" draggable="false">
+                <div class="pedal-label">Brake</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape').catch(() => {});
+        }
+
+        // ── Socket ────────────────────────────────────────────────────────────
+        const socket     = io();
+        const statusBar  = document.getElementById('status-bar');
+        const statusText = document.getElementById('status-text');
+
+        socket.on('connect',    () => { statusBar.className = 's-connected';    statusText.textContent = 'Connected'; });
+        socket.on('disconnect', () => { statusBar.className = 's-disconnected'; statusText.textContent = 'Disconnected'; resetAll(); });
+
+        // ── State ─────────────────────────────────────────────────────────────
+        let turn        = 0;
+        let gasActive   = false;
+        let brakeActive = false;
+
+        function getForward() {
+            // Game's joystickCallback does: this.js.forward = -forward
+            // So we must send the already-negated value to match the expected sign.
+            if (gasActive)   return -1;   // negative = forward in this game's physics
+            if (brakeActive) return  1;   // positive = reverse/brake
+            return 0;
+        }
+
+        function send() {
+            socket.emit('input', { forward: getForward(), turn });
+        }
+
+        function resetAll() {
+            turn = 0; gasActive = false; brakeActive = false;
+            gasPanel.classList.remove('active');
+            brakePanel.classList.remove('active');
+            wheelImg.classList.remove('grabbed');
+            applySteer(0);
+            send();
+        }
+
+        // ── Steering wheel ────────────────────────────────────────────────────
+        const wheelImg = document.getElementById('wheel-img');
+        const turnBar  = document.getElementById('turn-bar');
+        const turnWrap = document.getElementById('turn-bar-wrap');
+        const MAX_DRAG = 110;
+        const MAX_DEG  = 90;
+        let steerTouchId = null;
+        let steerStartX  = 0;
+
+        function applySteer(t) {
+            turn = t;
+            wheelImg.style.transform = `rotate(${t * MAX_DEG}deg)`;
+            // Indicator bar grows from center
+            const wrapW = turnWrap.offsetWidth;
+            const halfBar = Math.abs(t) * 50; // % of half-width
+            if (t >= 0) {
+                turnBar.style.left  = '50%';
+                turnBar.style.width = `${halfBar}%`;
+            } else {
+                turnBar.style.left  = `${50 - halfBar}%`;
+                turnBar.style.width = `${halfBar}%`;
+            }
+        }
+
+        function steerStart(id, clientX) {
+            steerTouchId = id;
+            steerStartX  = clientX;
+            wheelImg.classList.add('grabbed');
+        }
+
+        function steerMove(clientX) {
+            const raw = (clientX - steerStartX) / MAX_DRAG;
+            // Negate: game's joystickCallback negates turn, so we mirror that
+            applySteer(Math.max(-1, Math.min(1, -raw)));
+            send();
+        }
+
+        function steerEnd() {
+            steerTouchId = null;
+            wheelImg.classList.remove('grabbed');
+            applySteer(0);
+            send();
+        }
+
+        wheelImg.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (steerTouchId === null) steerStart(e.changedTouches[0].identifier, e.changedTouches[0].clientX);
+        }, { passive: false });
+
+        wheelImg.addEventListener('mousedown', (e) => steerStart('mouse', e.clientX));
+
+        // ── Pedals ────────────────────────────────────────────────────────────
+        const gasPanel   = document.getElementById('gas-panel');
+        const brakePanel = document.getElementById('brake-panel');
+        let gasTouchId   = null;
+        let brakeTouchId = null;
+
+        function pressGas(id)   { gasTouchId   = id;   gasActive   = true;  gasPanel.classList.add('active');   send(); }
+        function pressBrake(id) { brakeTouchId = id;   brakeActive = true;  brakePanel.classList.add('active'); send(); }
+        function releaseGas()   { gasTouchId   = null; gasActive   = false; gasPanel.classList.remove('active');   send(); }
+        function releaseBrake() { brakeTouchId = null; brakeActive = false; brakePanel.classList.remove('active'); send(); }
+
+        gasPanel.addEventListener('touchstart',   (e) => { e.preventDefault(); if (gasTouchId   === null) pressGas(e.changedTouches[0].identifier);   }, { passive: false });
+        brakePanel.addEventListener('touchstart', (e) => { e.preventDefault(); if (brakeTouchId === null) pressBrake(e.changedTouches[0].identifier); }, { passive: false });
+        gasPanel.addEventListener('mousedown',   () => pressGas('mouse'));
+        brakePanel.addEventListener('mousedown', () => pressBrake('mouse'));
+
+        // ── Global handlers ───────────────────────────────────────────────────
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            for (const t of e.changedTouches) {
+                if (t.identifier === steerTouchId) steerMove(t.clientX);
+            }
+        }, { passive: false });
+
+        function handleEnd(e) {
+            e.preventDefault();
+            for (const t of e.changedTouches) {
+                if (t.identifier === steerTouchId) steerEnd();
+                if (t.identifier === gasTouchId)   releaseGas();
+                if (t.identifier === brakeTouchId) releaseBrake();
+            }
+        }
+        document.addEventListener('touchend',    handleEnd, { passive: false });
+        document.addEventListener('touchcancel', handleEnd, { passive: false });
+
+        document.addEventListener('mousemove', (e) => { if (steerTouchId === 'mouse') steerMove(e.clientX); });
+        document.addEventListener('mouseup', () => {
+            if (steerTouchId === 'mouse') steerEnd();
+            if (gasActive)   releaseGas();
+            if (brakeActive) releaseBrake();
+        });
+    </script>
+</body>
+</html>
