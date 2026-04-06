@@ -234,11 +234,50 @@
 			z-index: 10;
 		}
 
-		#hud-speed {
+		#hud-speed-p1 {
 			font-size: 28px;
 			color: #00c8ff;
 			text-shadow: 0 0 12px rgba(0,200,255,0.7);
 			margin-bottom: 4px;
+		}
+
+		/* ── Split-screen divider & player labels ────────────────── */
+		#split-divider {
+			display: none;
+			position: absolute;
+			top: 50%;
+			left: 0;
+			width: 100%;
+			height: 2px;
+			background: rgba(0,200,255,0.35);
+			pointer-events: none;
+			z-index: 10;
+		}
+
+		.player-label {
+			display: none;
+			position: absolute;
+			left: 15px;
+			font-size: 11px;
+			letter-spacing: 3px;
+			text-transform: uppercase;
+			pointer-events: none;
+			z-index: 10;
+		}
+		#label-p1 { top: calc(25% - 22px); color: #00c8ff; }
+		#label-p2 { top: calc(75% - 22px); color: #ff5555; }
+
+		#hud-speed-p2 {
+			position: absolute;
+			bottom: calc(50% + 15px);
+			right: 15px;
+			display: none;
+			font-family: "usuzi", monospace;
+			font-size: 28px;
+			color: #ff5555;
+			text-shadow: 0 0 12px rgba(255,85,85,0.7);
+			pointer-events: none;
+			z-index: 10;
 		}
 
 		#hud-controller-status {
@@ -323,10 +362,18 @@
 	<!-- Reset (shown in-game) -->
 	<button id="reset-btn">&#x1F697;</button>
 
+	<!-- Split-screen divider -->
+	<div id="split-divider"></div>
+	<div class="player-label" id="label-p1">P1 — phone / joystick</div>
+	<div class="player-label" id="label-p2">P2 — WASD / phone</div>
+
+	<!-- P2 speed (bottom viewport) -->
+	<div id="hud-speed-p2">0 km/h</div>
+
 	<!-- HUD (shown in-game) -->
 	<div id="hud">
-		<div id="hud-speed">0 km/h</div>
-		<div id="hud-controller-status">Controller: offline</div>
+		<div id="hud-speed-p1">0 km/h</div>
+		<div id="hud-controller-status">Controllers: offline</div>
 		<div id="hud-controller-url"></div>
 	</div>
 

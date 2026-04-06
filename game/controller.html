@@ -39,6 +39,87 @@
             #controller    { display: none; }
         }
 
+        /* ── Player select screen ─────────────────────────── */
+        #player-select {
+            display: flex;
+            position: fixed;
+            inset: 0;
+            background: #111;
+            z-index: 60;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 28px;
+        }
+        #player-select h2 {
+            font-size: 14px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: #555;
+        }
+        .pick-btn {
+            width: 220px;
+            height: 72px;
+            border: 2px solid;
+            border-radius: 6px;
+            background: transparent;
+            font-family: monospace;
+            font-size: 22px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            /* Allow taps to register despite touch-action:none on body */
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.15s, box-shadow 0.15s;
+        }
+        .pick-btn.p1 { border-color: #4a9eff; color: #4a9eff; }
+        .pick-btn.p1:active { background: rgba(74,158,255,0.15); box-shadow: 0 0 24px rgba(74,158,255,0.4); }
+        .pick-btn.p2 { border-color: #ff5555; color: #ff5555; }
+        .pick-btn.p2:active { background: rgba(255,85,85,0.15);  box-shadow: 0 0 24px rgba(255,85,85,0.4);  }
+        #player-select.hidden { display: none; }
+
+        /* ── Waiting screen (after pick, before server reply) ── */
+        #waiting {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #111;
+            z-index: 50;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 18px;
+            gap: 14px;
+        }
+        #waiting .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid #333;
+            border-top-color: #4a9eff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #waiting.visible  { display: flex; }
+        #waiting.hidden   { display: none; }
+
+        /* ── Player badge ─────────────────────────────────── */
+        #player-badge {
+            position: absolute;
+            top: 7px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 13px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            z-index: 10;
+            pointer-events: none;
+        }
+        #player-badge.p1 { color: #4a9eff; }
+        #player-badge.p2 { color: #ff5555; }
+        #player-badge.full { color: #888; }
+
         /* ── Main layout ──────────────────────────────────── */
         #controller {
             width: 100%;
@@ -53,8 +134,7 @@
         #status-bar {
             position: absolute;
             top: 7px;
-            left: 50%;
-            transform: translateX(-50%);
+            right: 12px;
             display: flex;
             align-items: center;
             gap: 5px;
@@ -164,6 +244,9 @@
         /* Brake */
         #brake-panel.active img          { transform: scale(0.93) translateY(3px); filter: drop-shadow(0 0 14px rgba(220,50,50,0.9)); }
         #brake-panel.active .pedal-label { color: #e33; }
+
+        /* P2 tint on turn bar */
+        .is-p2 #turn-bar { background: #ff5555; }
     </style>
 </head>
 <body>
@@ -173,7 +256,22 @@
         <div>Rotate your phone to landscape</div>
     </div>
 
+    <!-- Step 1: choose which player you want to be -->
+    <div id="player-select">
+        <h2>Choose your player</h2>
+        <button class="pick-btn p1" id="pick-p1">Player 1</button>
+        <button class="pick-btn p2" id="pick-p2">Player 2</button>
+    </div>
+
+    <!-- Step 2: waiting for server to confirm the slot -->
+    <div id="waiting">
+        <div class="spinner"></div>
+        <div id="waiting-text">Connecting...</div>
+    </div>
+
     <div id="controller">
+        <div id="player-badge"></div>
+
         <div id="status-bar">
             <div id="status-dot"></div>
             <span id="status-text">Connecting...</span>
@@ -186,7 +284,7 @@
             <div id="steer-hint">drag to steer</div>
         </div>
 
-        <!-- RIGHT: Gas (top) + Brake (bottom) -->
+        <!-- RIGHT: Gas + Brake -->
         <div id="pedals-section">
             <div class="pedal-panel" id="gas-panel">
                 <img src="assets/images/acceleratorPedal.png" draggable="false">
@@ -206,12 +304,83 @@
         }
 
         // ── Socket ────────────────────────────────────────────────────────────
-        const socket     = io();
-        const statusBar  = document.getElementById('status-bar');
-        const statusText = document.getElementById('status-text');
+        const socket      = io();
+        const statusBar   = document.getElementById('status-bar');
+        const statusText  = document.getElementById('status-text');
+        const waitingEl   = document.getElementById('waiting');
+        const waitText    = document.getElementById('waiting-text');
+        const badge       = document.getElementById('player-badge');
+        const controller  = document.getElementById('controller');
+        const selectScreen = document.getElementById('player-select');
 
-        socket.on('connect',    () => { statusBar.className = 's-connected';    statusText.textContent = 'Connected'; });
-        socket.on('disconnect', () => { statusBar.className = 's-disconnected'; statusText.textContent = 'Disconnected'; resetAll(); });
+        let myPlayerID  = -1;   // assigned by server after 'register'
+        let myPreferred = -1;   // chosen by the player on this screen
+
+        // ── Step 1: player taps P1 or P2 ─────────────────────────────────────
+        // Use both touchend and click so it works on mobile and desktop.
+        function addPickListener(id, preferred) {
+            const btn = document.getElementById(id);
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); pickPlayer(preferred); });
+            btn.addEventListener('click',    ()  => pickPlayer(preferred));
+        }
+        addPickListener('pick-p1', 0);
+        addPickListener('pick-p2', 1);
+
+        function pickPlayer(preferred) {
+            myPreferred = preferred;
+            selectScreen.classList.add('hidden');
+            waitingEl.classList.add('visible');
+            waitText.textContent = 'Connecting…';
+            // If socket is already connected, register immediately;
+            // otherwise the 'connect' event will do it.
+            if (socket.connected) {
+                socket.emit('register', { preferred });
+                waitText.textContent = 'Waiting for slot…';
+            }
+        }
+
+        socket.on('connect', () => {
+            statusBar.className = 's-connected';
+            statusText.textContent = 'Connected';
+            // Only register if the player has already picked a slot
+            if (myPreferred !== -1) {
+                socket.emit('register', { preferred: myPreferred });
+                waitText.textContent = 'Waiting for slot…';
+            }
+        });
+
+        socket.on('disconnect', () => {
+            statusBar.className = 's-disconnected';
+            statusText.textContent = 'Disconnected';
+            resetAll();
+        });
+
+        socket.on('playerAssigned', (data) => {
+            myPlayerID = data.playerID;
+            waitingEl.classList.remove('visible');
+            waitingEl.classList.add('hidden');
+
+            if (myPlayerID === 0) {
+                badge.textContent = 'Player 1';
+                badge.className = 'p1';
+            } else if (myPlayerID === 1) {
+                badge.textContent = 'Player 2';
+                badge.className = 'p2';
+                controller.classList.add('is-p2');
+            } else {
+                // Both slots full — go back to selection
+                badge.textContent = '';
+                waitText.textContent = 'Slot taken — pick again.';
+                waitingEl.classList.remove('hidden');
+                waitingEl.classList.add('visible');
+                setTimeout(() => {
+                    waitingEl.classList.remove('visible');
+                    waitingEl.classList.add('hidden');
+                    selectScreen.classList.remove('hidden');
+                    myPreferred = -1;
+                }, 1800);
+            }
+        });
 
         // ── State ─────────────────────────────────────────────────────────────
         let turn        = 0;
@@ -219,14 +388,13 @@
         let brakeActive = false;
 
         function getForward() {
-            // Game's joystickCallback does: this.js.forward = -forward
-            // So we must send the already-negated value to match the expected sign.
-            if (gasActive)   return -1;   // negative = forward in this game's physics
-            if (brakeActive) return  1;   // positive = reverse/brake
+            if (gasActive)   return -1;
+            if (brakeActive) return  1;
             return 0;
         }
 
         function send() {
+            if (myPlayerID === -1) return; // not yet assigned
             socket.emit('input', { forward: getForward(), turn });
         }
 
@@ -250,10 +418,8 @@
 
         function applySteer(t) {
             turn = t;
-            wheelImg.style.transform = `rotate(${t * MAX_DEG}deg)`;
-            // Indicator bar grows from center
-            const wrapW = turnWrap.offsetWidth;
-            const halfBar = Math.abs(t) * 50; // % of half-width
+            wheelImg.style.transform = `rotate(${-t * MAX_DEG}deg)`;
+            const halfBar = Math.abs(t) * 50;
             if (t >= 0) {
                 turnBar.style.left  = '50%';
                 turnBar.style.width = `${halfBar}%`;
@@ -271,7 +437,6 @@
 
         function steerMove(clientX) {
             const raw = (clientX - steerStartX) / MAX_DRAG;
-            // Negate: game's joystickCallback negates turn, so we mirror that
             applySteer(Math.max(-1, Math.min(1, -raw)));
             send();
         }
